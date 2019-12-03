@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-
+import time
 from baselines import logger
 from baselines.common.cmd_util import make_atari_env, atari_arg_parser
 from baselines.common.vec_env.vec_frame_stack import VecFrameStack
@@ -7,7 +7,7 @@ from baselines.a2c.a2c import learn
 from baselines.a2c.policies import CnnPolicy, LstmPolicy, LnLstmPolicy, CnnPolicyIntrinsicReward
 
 def train(env_id, num_timesteps, seed, policy, lrschedule, num_env,
-          v_ex_coef, r_ex_coef, r_in_coef, lr_alpha, lr_beta):
+          v_ex_coef, r_ex_coef, r_in_coef, lr_alpha, lr_beta, no_ex, no_in):
     if policy == 'cnn':
         policy_fn = CnnPolicy
     elif policy == 'lstm':
@@ -21,7 +21,7 @@ def train(env_id, num_timesteps, seed, policy, lrschedule, num_env,
     env = VecFrameStack(make_atari_env(env_id, num_env, seed), 4)
     learn(policy_fn, env, seed, total_timesteps=int(num_timesteps * 1.01), lrschedule=lrschedule,
           v_ex_coef=v_ex_coef, r_ex_coef=r_ex_coef, r_in_coef=r_in_coef,
-          lr_alpha=lr_alpha, lr_beta=lr_beta)
+          lr_alpha=lr_alpha, lr_beta=lr_beta, no_ex=no_ex, no_in=no_in)
     env.close()
 
 def main():
@@ -37,12 +37,18 @@ def main():
     parser.add_argument('--r-in-coef', type=float, default=0.01)
     parser.add_argument('--lr-alpha', type=float, default=7E-4)
     parser.add_argument('--lr-beta', type=float, default=7E-4)
+    parser.add_argument('--no_ex', action='store_true', default=False)
+    parser.add_argument('--no_in', action='store_true', default=False)
     args = parser.parse_args()
     logger.configure()
     train(args.env, num_timesteps=args.num_timesteps, seed=args.seed,
           policy=args.policy, lrschedule=args.lrschedule, num_env=16,
           v_ex_coef=args.v_ex_coef, r_ex_coef=args.r_ex_coef, r_in_coef=args.r_in_coef,
-          lr_alpha=args.lr_alpha, lr_beta=args.lr_beta)
+          lr_alpha=args.lr_alpha, lr_beta=args.lr_beta, no_ex=args.no_ex, no_in=args.no_in)
 
 if __name__ == '__main__':
+    toc = time.time()
     main()
+    tic = time.time()
+    print('min: ', (tic - toc) / 60.0)
+    print('hrs: ', (tic - toc) / 3600.0)

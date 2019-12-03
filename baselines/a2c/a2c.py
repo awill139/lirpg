@@ -18,11 +18,13 @@ from baselines.a2c.utils import cat_entropy, mse
 
 from collections import deque
 
+skores = []
+
 class Model(object):
 
     def __init__(self, policy, ob_space, ac_space, nenvs, nsteps,
             ent_coef=0.01, v_mix_coef=0.5, max_grad_norm=0.5, lr_alpha=7e-4, lr_beta=7e-4,
-            alpha=0.99, epsilon=1e-5, total_timesteps=int(80e6), lrschedule='linear',
+            alpha=0.99, epsilon=1e-5, total_timesteps=int(50e5), lrschedule='linear',
             r_ex_coef=1.0, r_in_coef=0.0, v_ex_coef=1.0):
 
         sess = tf_util.make_session()
@@ -127,7 +129,7 @@ class Model(object):
 
 class Runner(object):
 
-    def __init__(self, env, model, nsteps=5, gamma=0.99, r_ex_coef=1.0, r_in_coef=0.0):
+    def __init__(self, env, model, nsteps=5, gamma=0.99, r_ex_coef=1.0, r_in_coef=0.0, no_ex=False, no_in=False):
         self.env = env
         self.model = model
         nenv = env.num_envs
@@ -142,6 +144,8 @@ class Runner(object):
         self.ep_r_in = np.zeros([nenv])
         self.ep_r_ex = np.zeros([nenv])
         self.ep_len = np.zeros([nenv])
+        self.no_ex = no_ex
+        self.no_in = no_in
 
     def run(self):
         mb_obs, mb_r_ex, mb_r_in, mb_ac, mb_v_ex, mb_v_mix, mb_dones = [],[],[],[],[],[],[]
@@ -157,6 +161,10 @@ class Runner(object):
             mb_dones.append(self.dones)
             obs, r_ex, dones, infos = self.env.step(ac)
             r_in = self.model.intrinsic_reward(self.obs, ac)
+            if self.no_ex:
+                r_ex = 0
+            if self.no_in:
+                r_in = 0
             mb_r_ex.append(r_ex)
             mb_r_in.append(r_in)
             self.policy_states = policy_states
@@ -215,9 +223,9 @@ class Runner(object):
                mb_v_ex, mb_v_mix, last_v_ex, last_v_mix, mb_masks, mb_dones,\
                ep_info, ep_r_ex, ep_r_in, ep_len
 
-def learn(policy, env, seed, nsteps=5, total_timesteps=int(80e6), v_mix_coef=0.5, ent_coef=0.01, max_grad_norm=0.5,
+def learn(policy, env, seed, nsteps=5, total_timesteps=int(50e6), v_mix_coef=0.5, ent_coef=0.01, max_grad_norm=0.5,
           lr_alpha=7e-4, lr_beta=7e-4, lrschedule='linear', epsilon=1e-5, alpha=0.99, gamma=0.99, log_interval=100,
-          v_ex_coef=1.0, r_ex_coef=0.0, r_in_coef=1.0):
+          v_ex_coef=1.0, r_ex_coef=0.0, r_in_coef=1.0, no_ex=False, no_in=False):
     tf.reset_default_graph()
     set_global_seeds(seed)
 
@@ -228,7 +236,7 @@ def learn(policy, env, seed, nsteps=5, total_timesteps=int(80e6), v_mix_coef=0.5
                   v_ex_coef=v_ex_coef, max_grad_norm=max_grad_norm, lr_alpha=lr_alpha, lr_beta=lr_beta,
                   alpha=alpha, epsilon=epsilon, total_timesteps=total_timesteps, lrschedule=lrschedule,
                   v_mix_coef=v_mix_coef, r_ex_coef=r_ex_coef, r_in_coef=r_in_coef)
-    runner = Runner(env, model, nsteps=nsteps, gamma=gamma, r_ex_coef=r_ex_coef, r_in_coef=r_in_coef)
+    runner = Runner(env, model, nsteps=nsteps, gamma=gamma, r_ex_coef=r_ex_coef, r_in_coef=r_in_coef, no_ex=no_in, no_in=no_in)
 
     nbatch = nenvs*nsteps
     tstart = time.time()
@@ -273,6 +281,9 @@ def learn(policy, env, seed, nsteps=5, total_timesteps=int(80e6), v_mix_coef=0.5
             logger.record_tabular("gamescoremean", safemean([epinfo['r'] for epinfo in epinfobuf]))
             logger.record_tabular("gamelenmean", safemean([epinfo['l'] for epinfo in epinfobuf]))
             logger.dump_tabular()
+            skores.append(safemean([epinfo['r'] for epinfo in epinfobuf]))
+    with open('scores_no_ICM.p' 'wb') as f:
+        pickle.dump(skores, f)
     env.close()
 
 def safemean(xs):
