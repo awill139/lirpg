@@ -161,10 +161,11 @@ class Runner(object):
             mb_dones.append(self.dones)
             obs, r_ex, dones, infos = self.env.step(ac)
             r_in = self.model.intrinsic_reward(self.obs, ac)
+            #print(type(r_in))
             if self.no_ex:
-                r_ex = 0
+                r_ex = np.zeros_like(r_ex)
             if self.no_in:
-                r_in = 0
+                r_in = np.zeros_like(r_in)
             mb_r_ex.append(r_ex)
             mb_r_in.append(r_in)
             self.policy_states = policy_states
